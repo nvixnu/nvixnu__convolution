@@ -1,5 +1,73 @@
 #include "nvixnu__convolution.h"
 
+
+
+__global__
+void nvixnu__2d_convolution_kernel(double *input, double *output, const int width,  const int height, const double* __restrict__ mask, const int mask_width){
+    extern __shared__ double shared[];
+    const int O_TILE_WIDTH = blockDim.x; //The output tile width is equal to the blockDim.x
+
+    const int SHARED_STRIDE = blockDim.x + mask_width - 1; //The stride to the linearized shared memory array
+
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+
+    //The output array coordinates
+    int row_o = blockIdx.y*O_TILE_WIDTH + ty;
+    int col_o = blockIdx.x*O_TILE_WIDTH + tx;
+
+    //The input array coordinates
+    int row_i = row_o - mask_width/2;
+    int col_i = col_o - mask_width/2;
+
+    //Loads the input values or zero(to the ghosts and halo cells)
+    if(row_i >= 0 && row_i < height && col_i >=0 && col_i < width){
+        shared[ty*SHARED_STRIDE + tx] = input[row_i * width + col_i];
+    }else{
+        shared[ty*SHARED_STRIDE + tx] = 0.0;
+    }
+
+    __syncthreads();
+
+    double value = 0.0;
+
+
+    if(ty < O_TILE_WIDTH && tx < O_TILE_WIDTH){ //Check if the thread index is into the output tile width
+        for(int i = 0; i < mask_width; i++){ // Gets the rows and cols of the mask
+          for(int j = 0; j < mask_width; j++){
+              value += mask[i*mask_width + j] * shared[(i+ty)*SHARED_STRIDE + (j+tx)]; // Performs the convolution
+          }
+        }
+        if(row_o < height && col_o < width){ //Check if thread indexes are into the output domain
+            output[row_o*width + col_o] = value;
+        }
+    }
+}
+
+void nvixnu__2d_convolution_host(double *input, double *output, const int width, const int height, const double *mask, const int mask_width){
+    int ghosts_by_side = mask_width/2;
+    double sum;
+    int input_row, input_col;
+
+    for(int output_row = 0; output_row < height; output_row++){ // Iterates through each output position (row and col) to calculate it
+      for(int output_col = 0; output_col < width; output_col++){
+          sum = 0;
+          for(int mask_row = 0; mask_row < mask_width; mask_row++){   // Iterates through each mask position (row) to get it
+            input_row = output_row - ghosts_by_side + mask_row;   //Calculates the input row index to be accessed
+            if(input_row >= 0 && input_row < height ){           //Checks if the row has input values or only ghosts
+              for(int mask_col = 0; mask_col < mask_width; mask_col++){  // Iterates through each mask position (col) to get it
+                  input_col = output_col - ghosts_by_side + mask_col;  //Calculates the input col index to be accessed
+                  if(input_col >= 0  && input_col < width){  //Checks if the col of the current row is a input value or a ghost cell
+                      sum += input[input_row*width + input_col]*mask[mask_row*mask_width + mask_col]; //Performs the convolution
+                  }
+              }
+              output[output_row*width + output_col] = sum;
+            }
+          }
+      }
+    }
+}
+
 void nvixnu__1d_convolution_host(double *input, double *output, const int length, const double *mask, const int mask_width){
 	int ghosts_by_side = mask_width/2;
 	double sum;
