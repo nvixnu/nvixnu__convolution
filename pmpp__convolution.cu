@@ -1,9 +1,9 @@
-#include "nvixnu__convolution.h"
+#include "pmpp__convolution.h"
 
 
 
 __global__
-void nvixnu__2d_convolution_kernel(double *input, double *output, const int width,  const int height, const double* __restrict__ mask, const int mask_width){
+void pmpp__2d_convolution_kernel(double *input, double *output, const int width,  const int height, const double* __restrict__ mask, const int mask_width){
     extern __shared__ double shared[];
     const int O_TILE_WIDTH = blockDim.x; //The output tile width is equal to the blockDim.x
 
@@ -44,7 +44,7 @@ void nvixnu__2d_convolution_kernel(double *input, double *output, const int widt
     }
 }
 
-void nvixnu__2d_convolution_host(double *input, double *output, const int width, const int height, const double *mask, const int mask_width){
+void pmpp__2d_convolution_host(double *input, double *output, const int width, const int height, const double *mask, const int mask_width){
     int ghosts_by_side = mask_width/2;
     double sum;
     int input_row, input_col;
@@ -68,7 +68,7 @@ void nvixnu__2d_convolution_host(double *input, double *output, const int width,
     }
 }
 
-void nvixnu__1d_convolution_host(double *input, double *output, const int length, const double *mask, const int mask_width){
+void pmpp__1d_convolution_host(double *input, double *output, const int length, const double *mask, const int mask_width){
 	int ghosts_by_side = mask_width/2;
 	double sum;
 	int input_idx;
@@ -86,7 +86,7 @@ void nvixnu__1d_convolution_host(double *input, double *output, const int length
 }
 
 __global__
-void nvixnu__1d_convolution_kernel(double *input, double *output, const int length, double *mask, const int mask_width){
+void pmpp__1d_convolution_kernel(double *input, double *output, const int length, double *mask, const int mask_width){
 	int tid = blockIdx.x*blockDim.x + threadIdx.x;
 
 	extern __shared__ double shared[];
